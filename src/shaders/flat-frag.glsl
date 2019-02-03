@@ -8,6 +8,33 @@ uniform float u_Time;
 in vec2 fs_Pos;
 out vec4 out_Col;
 
+
+float circleSDF(vec3 center, float radius, vec3 point) {
+    return length(point - center) - radius;
+}
+
+float rayMarchCircle(vec3 center, float radius, vec3 ray, int maxIterations, float maxT) {
+    float t = 0.0;
+    float distance;
+    int iterations = 0;
+    while (t < maxT && iterations <= maxIterations) {
+        //get distance from point on the ray to the object
+        distance = circleSDF(center, radius, u_Eye + t * ray);
+
+        //if distance < some epsilon we are done
+        if(circleSDF(center, radius, u_Eye + t * ray) < 0.01) {
+            return t;
+        }
+
+        t += distance;
+        iterations++;
+    }
+    if(iterations >= maxIterations) return maxT;
+
+    return t;
+}
+
+
 void main() {
 
 
@@ -23,5 +50,22 @@ void main() {
 
   vec3 ray = normalize(p - u_Eye);
 
-  out_Col = vec4(0.5 * (ray + vec3(1.0, 1.0, 1.0)), 1.0);
+
+  //ray march the circle
+  vec3 center = vec3(0,0,0);
+  float radius = 2.0;
+  float maxT = 100.0;
+  int maxIterations = 100;
+  float t = rayMarchCircle(center, radius, ray, maxIterations, maxT);
+
+  if( t < maxT) {
+      out_Col = vec4(0,0,0,1.0);
+  }
+  else {
+      out_Col = vec4(0.5 * (ray + vec3(1.0, 1.0, 1.0)), 1.0);
+  }
+
+  float dist = circleSDF(center, radius, u_Eye);
+  //out_Col = vec4(0.0, 0.0, t, 1.0);
+
 }

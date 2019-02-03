@@ -52,7 +52,7 @@ void main() {
 
 
   //ray march the circle
-  vec3 center = vec3(0,0,0);
+  vec3 center = vec3(-5,0,1);
   float radius = 2.0;
   float maxT = 100.0;
   int maxIterations = 100;

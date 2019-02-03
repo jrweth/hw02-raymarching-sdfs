@@ -8,6 +8,7 @@ uniform float u_Time;
 in vec2 fs_Pos;
 out vec4 out_Col;
 
+const vec3 lightDirection = normalize(vec3(1.0,1.0,-1.0));
 
 float circleSDF(vec3 center, float radius, vec3 point) {
     return length(point - center) - radius;
@@ -34,6 +35,10 @@ float rayMarchCircle(vec3 center, float radius, vec3 ray, int maxIterations, flo
     return t;
 }
 
+vec3 getCircleNormal(vec3 center, vec3 point) {
+    return normalize(point - center);
+}
+
 
 void main() {
 
@@ -56,16 +61,24 @@ void main() {
   float radius = 2.0;
   float maxT = 100.0;
   int maxIterations = 100;
+  vec3 color = vec3(0.5, 0.5, 1.0);
   float t = rayMarchCircle(center, radius, ray, maxIterations, maxT);
 
   if( t < maxT) {
-      out_Col = vec4(0,0,0,1.0);
+      //get the diffuse term
+      vec3 normal = getCircleNormal(center, u_Eye + ray*t);
+      //get the lambert intesity based upon the normal
+      float intensity = dot(normal, lightDirection) * 0.9 + 0.1;
+      out_Col = vec4(color * intensity, 1.0);
   }
   else {
       out_Col = vec4(0.5 * (ray + vec3(1.0, 1.0, 1.0)), 1.0);
   }
 
-  float dist = circleSDF(center, radius, u_Eye);
+
+
+
+  //float dist = circleSDF(center, radius, u_Eye);
   //out_Col = vec4(0.0, 0.0, t, 1.0);
 
 }

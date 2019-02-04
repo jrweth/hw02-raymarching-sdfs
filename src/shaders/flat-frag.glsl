@@ -40,8 +40,6 @@ float sphereSDF(vec3 center, float radius, vec3 point) {
     return length(point - center) - radius;
 }
 
-
-
 float rayMarchSphere(vec3 center, float radius, vec3 ray, int maxIterations, float maxT) {
     float t = 0.0;
     float distance;
@@ -133,6 +131,13 @@ vec3 getMoonNormal(vec3 center, float radius, int numCraters, vec3 point) {
     return normalize(point - center);
 }
 
+float spikeSDF(vec3 center, float width, float height, vec3 direction, vec3 point) {
+    if(point.y > center.y + height) return length(point - vec3(center.x, center.y + height, center.z));
+
+   return length(point - center);
+
+}
+
 
 void main() {
 
@@ -150,30 +155,38 @@ void main() {
   vec3 ray = normalize(p - u_Eye);
 
 
-  //ray march the sphere
-  vec3 center = vec3(0,0,0);
-  float radius = 2.0;
-  int numCraters = 1;
+
   float maxT = 100.0;
   int maxIterations = 100;
-  vec3 color = vec3(0.5, 0.5, 1.0);
-  float t = rayMarchMoon(center, radius, numCraters, ray, maxIterations, maxT);
+  vec3 color = 0.5 * (ray + vec3(1.0, 1.0, 1.0));
+  vec3 normal = lightDirection;
 
+  //ray march the sphere
+  vec3 sphereCenter = vec3(0.0, 0.0, 0.0);
+  float sphereRadius = 2.0;
+  float t = rayMarchSphere(sphereCenter, sphereRadius, ray, maxIterations, maxT);
   if( t < maxT) {
       //get the diffuse term
-      vec3 normal = getMoonNormal(center, radius, numCraters, u_Eye + ray*t);
-      //get the lambert intesity based upon the normal
-      float intensity = dot(normal, lightDirection) * 0.9 + 0.1;
-      out_Col = vec4(color * intensity, 1.0);
-  }
-  else {
-      out_Col = vec4(0.5 * (ray + vec3(1.0, 1.0, 1.0)), 1.0);
+      color = vec3(0.6, 1.0, 0.0);
+      normal = getSphereNormal(sphereCenter, u_Eye + ray*t);
+      maxT = t;
   }
 
 
 
+  //ray march the moon
+  vec3 moonCenter = vec3(4.5,0,0);
+  float moonRadius = 2.0;
+  int numCraters = 1;
+  t = rayMarchMoon(moonCenter, moonRadius, numCraters, ray, maxIterations, maxT);
+  if( t < maxT) {
+      //get the diffuse term
+      color = vec3(1.0, 0.6, 0.0);
+      normal = getMoonNormal(moonCenter, moonRadius, numCraters, u_Eye + ray*t);
+  }
 
-  //float dist = sphereSDF(center, radius, u_Eye);
-  //out_Col = vec4(0.0, 0.0, t, 1.0);
+  float intensity = dot(normal, lightDirection) * 0.9 + 0.1;
+  out_Col = vec4(color * intensity, 1.0);
+
 
 }

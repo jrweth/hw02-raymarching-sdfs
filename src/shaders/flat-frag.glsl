@@ -8,8 +8,14 @@ uniform float u_Time;
 in vec2 fs_Pos;
 out vec4 out_Col;
 
-const vec3 lightDirection = normalize(vec3(1.0,1.0,-1.0));
+const vec3 lightDirection = normalize(vec3(1.0,2.0,-1.0));
 
+struct sdfParams {
+    int sdfType;
+    vec3 center;
+    float radius;
+    int numCraters;
+};
 
 //float random1( vec2 p , vec2 seed) {
 //  return fract(sin(dot(p + seed, vec2(127.1, 311.7))) * 43758.5453);
@@ -36,157 +42,286 @@ const vec3 lightDirection = normalize(vec3(1.0,1.0,-1.0));
 //}
 
 
-float sphereSDF(vec3 center, float radius, vec3 point) {
-    return length(point - center) - radius;
-}
+//  Function to calculate the ray based upn the up, eye, ref, aspect ration and screen position
+vec3 getRay(vec3 up, vec3 eye, vec3 ref, float aspect, vec2 screenPos) {
+    vec3 right = normalize(cross( up - eye, up));  //right vector
+    float len = length(ref - eye);   //length
+    vec3 vert = up * len; //normally this would also be based upon FOV tan(FOV) but we are constraing to the box
+    vec3 horiz = right * aspect * len; //normally this would also be based upon FOV tan(FOV) but we are constraining to the box
+    vec3 point = ref + (screenPos.x * horiz) + screenPos.y * vert;
 
-float rayMarchSphere(vec3 center, float radius, vec3 ray, int maxIterations, float maxT) {
-    float t = 0.0;
-    float distance;
-    int iterations = 0;
-    while (t < maxT && iterations <= maxIterations) {
-        //get distance from point on the ray to the object
-        distance = sphereSDF(center, radius, u_Eye + t * ray);
+    //calculate the ray
+    return normalize(point - eye);
 
-        //if distance < some epsilon we are done
-        if(distance < 0.01) {
-            return t;
-        }
-
-        t += distance;
-        iterations++;
-    }
-    if(iterations >= maxIterations) return maxT;
-
-    return t;
-}
-
-vec3 getSphereNormal(vec3 center, vec3 point) {
-    return normalize(point - center);
 }
 
 
-void getMoonCrater(vec3 moonCenter, float moonRadius, int craterIndex, out vec3 craterCenter, out float craterRadius) {
+//function to subract one sdf defined shape from another
+float sdfSubtract(float distance1, float distance2) {
+    return max ( -1.0 * distance1, distance2);
+}
+
+float sdfUnion(float distance1, float distance2) {
+   return min(distance1, distance2);
+}
+
+
+//function to find the intersection of one sdf shape with another
+float sdfIntersect(float distance1, float distance2) {
+    return max ( distance1, distance2 );
+}
+
+//function to find the intersection of one sdf shape with another
+float sdfSmoothBlend(float a, float b) {
+    float k = 0.1;
+    float h = clamp( 0.5+0.5*(b-a)/k, 0.0, 1.0 );
+    return mix( b, a, h ) - k*h*(1.0-h);
+}
+
+float sphereSDF(sdfParams params, vec3 point) {
+    return length(point - params.center) - params.radius;
+}
+
+
+vec3 sphereNormal(sdfParams params, vec3 point) {
+    return normalize(point - params.center);
+}
+
+
+
+void getMoonCrater(sdfParams params, int craterIndex, out sdfParams craterParams) {
     vec3 craterPlacement = normalize(vec3(-1.0, 1.0, -2.0));
-    craterCenter = moonCenter + (craterPlacement * moonRadius);
-    craterRadius = moonRadius * 0.3;
+    craterParams.center = params.center + (craterPlacement * params.radius);
+    craterParams.radius = params.radius * 0.3;
 }
 
 
-float moonSDF(vec3 center, float radius, int numCraters, vec3 point) {
+float moonSDF(sdfParams params, vec3 point) {
 
     vec3 craterPlacement = normalize(vec3(-1.0, 1.0, -2.0));
-    vec3 craterCenter;// = center + (craterPlacement * radius);
-    float craterRadius;// = radius * 0.5;
+    sdfParams craterParams;
     int craterIndex = 1;
-    getMoonCrater(center, radius, craterIndex, craterCenter, craterRadius);
+    getMoonCrater(params, craterIndex, craterParams);
 
-    return max (
-        -1.0 * sphereSDF(craterCenter, craterRadius, point),
-        sphereSDF(center, radius, point)
+    return sdfSubtract(
+        sphereSDF(craterParams, point),
+        sphereSDF(params, point)
     );
-
-}
-
-float rayMarchMoon(
-    vec3 center,
-    float radius,
-    int numCraters,
-    vec3 ray,
-    int maxIterations,
-    float maxT
-) {
-    float t = 0.0;
-    float distance;
-    int iterations = 0;
-    while (t < maxT && iterations <= maxIterations) {
-        //get distance from point on the ray to the object
-        distance = moonSDF(center, radius, numCraters, u_Eye + t * ray);
-
-        //if distance < some epsilon we are done
-        if(distance < 0.01) {
-            return t;
-        }
-
-        t += distance;
-        iterations++;
-    }
-    if(iterations >= maxIterations) return maxT;
-
-    return t;
 }
 
 
-vec3 getMoonNormal(vec3 center, float radius, int numCraters, vec3 point) {
 
-    vec3 craterCenter;
-    float craterRadius;
+vec3 moonNormal(sdfParams params,  vec3 point) {
+
+    sdfParams craterParams;
     int craterIndex = 1;
-    getMoonCrater(center, radius, craterIndex, craterCenter, craterRadius);
+    getMoonCrater(params, craterIndex, craterParams);
 
-    if(sphereSDF(craterCenter, craterRadius, point) < 0.0) {
-        return(craterCenter - point);
+    if(sphereSDF(craterParams, point) < 0.0) {
+        return(craterParams.center - point);
     }
 
-    return normalize(point - center);
+    return normalize(point - params.center);
 }
+
+
+
+float sphereIntersectSDF(sdfParams params, vec3 point) {
+    //adjust the two sphere centers
+    sdfParams params1 = params;
+    params1.center.x = params.center.x + params.radius / 2.0;
+
+    sdfParams params2 = params;
+    params2.center.x = params.center.x - params.radius / 2.0;
+
+    return sdfIntersect(
+        sphereSDF(params1, point),
+        sphereSDF(params2, point)
+    );
+}
+
+
+
+vec3 sphereIntersectNormal(sdfParams params, vec3 point) {
+    vec3 center1 = vec3(params.center.x + params.radius / 2.0, params.center.yz);
+    vec3 center2 = vec3(params.center.x - params.radius / 2.0, params.center.yz);
+
+    if(point.x > params.center.x) return normalize(point - center2);
+    return normalize(point - center1);
+}
+
 
 float spikeSDF(vec3 center, float width, float height, vec3 direction, vec3 point) {
     if(point.y > center.y + height) return length(point - vec3(center.x, center.y + height, center.z));
+    if(point.y < center.y - height) return length(point - vec3(center.x, center.y - height, center.z));
 
-   return length(point - center);
+    float radius = width * (1.0 - abs(point.y - center.y)/height);
+    return length(point - center);
+}
 
+float sphereSmoothBlendSDF(sdfParams params, vec3 point) {
+    //create sphere above the given center
+    sdfParams params1 = params;
+    params1.center.y = params.center.y + params.radius * 0.85;
+    float dist1 = sphereSDF(params1, point);
+
+    //create second spehere below the current center
+    sdfParams params2 = params;
+    params2.center.y = params.center.y - params.radius * 0.85;
+    float dist2 = sphereSDF(params2, point);
+
+    //return dist1;
+
+    return sdfSmoothBlend(dist1, dist2);
+
+}
+
+vec3 sphereSmoothBlendNormal(sdfParams params, vec3 point) {
+    vec3 center1 = vec3(params.center.x + params.radius / 2.0, params.center.yz);
+    vec3 center2 = vec3(params.center.x - params.radius / 2.0, params.center.yz);
+
+    if(point.x > params.center.x) return normalize(point - center2);
+    return normalize(point - center1);
+}
+
+
+
+vec3 getNormal(sdfParams params, vec3 point) {
+    switch(params.sdfType) {
+        case 0: return sphereNormal            (params, point);
+        case 1: return moonNormal              (params, point);
+        case 2: return sphereIntersectNormal   (params, point);
+        case 3: return sphereSmoothBlendNormal (params, point);
+    }
+    return vec3(0.0, 0.1, 0.0);
+}
+
+
+float rayMarch(sdfParams params, vec3 ray, int maxIterations, float maxT) {
+    float t = 0.0;
+    vec3 rayPos;
+    float distance;
+    int iterations = 0;
+    while (t < maxT && iterations <= maxIterations) {
+
+        rayPos = u_Eye + t * ray;
+
+        //get distance from point on the ray to the object
+        switch(params.sdfType) {
+            case 0: distance = sphereSDF           (params, rayPos); break;
+            case 1: distance = moonSDF             (params, rayPos); break;
+            case 2: distance = sphereIntersectSDF  (params, rayPos); break;
+            case 3: distance = sphereSmoothBlendSDF(params, rayPos); break;
+        }
+
+        //if distance < some epsilon we are done
+        if(distance < 0.01) {
+            return t;
+        }
+
+        t += distance;
+        iterations++;
+    }
+    if(iterations >= maxIterations) return maxT;
+
+    return t;
+}
+
+
+vec3 getNormalFromRays(sdfParams params) {
+    float aspect = u_Dimensions.x / u_Dimensions.y;
+    //calculate the points for 4 surrounding rays
+    vec3 ray1 = getRay(u_Up, u_Eye, u_Ref, aspect, fs_Pos + vec2(-0.001,  0.0));
+    vec3 ray2 = getRay(u_Up, u_Eye, u_Ref, aspect, fs_Pos + vec2( 0.001,  0.0));
+    vec3 ray3 = getRay(u_Up, u_Eye, u_Ref, aspect, fs_Pos + vec2( 0.00, -0.001));
+    vec3 ray4 = getRay(u_Up, u_Eye, u_Ref, aspect, fs_Pos + vec2( 0.00,  0.001));
+
+    float t1 =  rayMarch(params, ray1, 100, 100.0);
+    float t2 =  rayMarch(params, ray2, 100, 100.0);
+    float t3 =  rayMarch(params, ray3, 100, 100.0);
+    float t4 =  rayMarch(params, ray4, 100, 100.0);
+
+    vec3 p1 = u_Eye + ray1 * t1;
+    vec3 p2 = u_Eye + ray2 * t2;
+    vec3 p3 = u_Eye + ray3 * t3;
+    vec3 p4 = u_Eye + ray4 * t4;
+
+    return normalize(cross(p4-p3, p1-p2));
 }
 
 
 void main() {
 
 
-  float aspect = u_Dimensions.x / u_Dimensions.y;
+    float aspect = u_Dimensions.x / u_Dimensions.y;
 
-  vec3 U = u_Up;
-  vec3 R = normalize(cross( u_Ref - u_Eye, u_Up));
-  float len = length(u_Ref - u_Eye);
-  vec3 V = u_Up * len; //normally this would also be based upon FOV tan(FOV) but we are constraing to the box
-  vec3 H = R * aspect * len; //normally this would also be based upon FOV tan(FOV) but we are constraining to the box
+    //calculate the ray
+    vec3 ray = getRay(u_Up, u_Eye, u_Ref, aspect, fs_Pos);
 
-  vec3 p = u_Ref + (fs_Pos.x * H) + fs_Pos.y * V;
+    //set the default background color
+    vec3 color = 0.5 * (ray + vec3(1.0, 1.0, 1.0));
 
-  vec3 ray = normalize(p - u_Eye);
+    //set up
+    float maxT = 100.0;
+    int maxIterations = 100;
+    vec3 normal = lightDirection;
 
 
+    sdfParams params;
 
-  float maxT = 100.0;
-  int maxIterations = 100;
-  vec3 color = 0.5 * (ray + vec3(1.0, 1.0, 1.0));
-  vec3 normal = lightDirection;
-
-  //ray march the sphere
-  vec3 sphereCenter = vec3(0.0, 0.0, 0.0);
-  float sphereRadius = 2.0;
-  float t = rayMarchSphere(sphereCenter, sphereRadius, ray, maxIterations, maxT);
-  if( t < maxT) {
-      //get the diffuse term
-      color = vec3(0.6, 1.0, 0.0);
-      normal = getSphereNormal(sphereCenter, u_Eye + ray*t);
-      maxT = t;
-  }
+    //ray march the sphere
+    params.center = vec3(0.0, 0.0, 0.0);
+    params.radius = 2.0;
+    params.sdfType = 0;
+    float t = rayMarch(params, ray, maxIterations, maxT);
+    if( t < maxT) {
+        //get the diffuse term
+        color = vec3(0.6, 1.0, 0.0);
+        normal = getNormal(params, u_Eye + ray*t);
+        maxT = t;
+    }
 
 
 
-  //ray march the moon
-  vec3 moonCenter = vec3(4.5,0,0);
-  float moonRadius = 2.0;
-  int numCraters = 1;
-  t = rayMarchMoon(moonCenter, moonRadius, numCraters, ray, maxIterations, maxT);
-  if( t < maxT) {
-      //get the diffuse term
-      color = vec3(1.0, 0.6, 0.0);
-      normal = getMoonNormal(moonCenter, moonRadius, numCraters, u_Eye + ray*t);
-  }
+    //ray march the moon
+    params.center.x = 4.5;
+    params.numCraters = 1;
+    params.sdfType = 1;
+    t = rayMarch(params, ray, maxIterations, maxT);
+    if( t < maxT) {
+        //get the diffuse term
+        color = vec3(1.0, 0.6, 0.0);
+        normal = getNormal(params, u_Eye + ray*t);
+        maxT = t;
+    }
 
-  float intensity = dot(normal, lightDirection) * 0.9 + 0.1;
-  out_Col = vec4(color * intensity, 1.0);
+
+    //ray march the sphere intersect
+    params.center = vec3(-4.5, 0.0, 0.0);
+    params.sdfType = 2;
+    t = rayMarch(params, ray, maxIterations, maxT);
+    if( t < maxT) {
+        //get the diffuse term
+        color = vec3(1.0, 0.0, 0.0);
+        normal = getNormal(params, u_Eye + ray*t);
+        maxT = t;
+    }
+
+
+    params.center =  vec3(9.0, 0.0, 0.0);
+    params.radius =  1.5;
+    params.sdfType = 3;
+    t = rayMarch(params, ray, maxIterations, maxT);
+    if( t < maxT) {
+        //get the diffuse term
+        color = vec3(0.0, 0.0, 1.0);
+        normal = getNormalFromRays(params);
+        maxT = t;
+    }
+
+
+    float intensity = dot(normal, lightDirection) * 0.9 + 0.1;
+    out_Col = vec4(color * intensity, 1.0);
 
 
 }

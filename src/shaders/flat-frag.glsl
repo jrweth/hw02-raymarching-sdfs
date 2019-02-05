@@ -12,10 +12,13 @@ const vec3 lightDirection = normalize(vec3(1.0,2.0,-1.0));
 
 struct sdfParams {
     int sdfType;
+    int textureType;
     vec3 center;
     float radius;
     int numCraters;
+    vec3 color;
 };
+
 
 //float random1( vec2 p , vec2 seed) {
 //  return fract(sin(dot(p + seed, vec2(127.1, 311.7))) * 43758.5453);
@@ -73,7 +76,7 @@ float sdfIntersect(float distance1, float distance2) {
 
 //function to find the intersection of one sdf shape with another
 float sdfSmoothBlend(float a, float b) {
-    float k = 0.1;
+    float k = 0.7;
     float h = clamp( 0.5+0.5*(b-a)/k, 0.0, 1.0 );
     return mix( b, a, h ) - k*h*(1.0-h);
 }
@@ -162,12 +165,14 @@ float spikeSDF(vec3 center, float width, float height, vec3 direction, vec3 poin
 float sphereSmoothBlendSDF(sdfParams params, vec3 point) {
     //create sphere above the given center
     sdfParams params1 = params;
-    params1.center.y = params.center.y + params.radius * 0.85;
+    params1.center.y = params.center.y + params.radius * 0.4;
+    params1.radius = params.radius * 0.4;
     float dist1 = sphereSDF(params1, point);
 
     //create second spehere below the current center
     sdfParams params2 = params;
-    params2.center.y = params.center.y - params.radius * 0.85;
+    params2.center.y = params.center.y - params.radius * 0.4;
+    params2.radius = params.radius * 0.4;
     float dist2 = sphereSDF(params2, point);
 
     //return dist1;
@@ -175,27 +180,6 @@ float sphereSmoothBlendSDF(sdfParams params, vec3 point) {
     return sdfSmoothBlend(dist1, dist2);
 
 }
-
-vec3 sphereSmoothBlendNormal(sdfParams params, vec3 point) {
-    vec3 center1 = vec3(params.center.x + params.radius / 2.0, params.center.yz);
-    vec3 center2 = vec3(params.center.x - params.radius / 2.0, params.center.yz);
-
-    if(point.x > params.center.x) return normalize(point - center2);
-    return normalize(point - center1);
-}
-
-
-
-vec3 getNormal(sdfParams params, vec3 point) {
-    switch(params.sdfType) {
-        case 0: return sphereNormal            (params, point);
-        case 1: return moonNormal              (params, point);
-        case 2: return sphereIntersectNormal   (params, point);
-        case 3: return sphereSmoothBlendNormal (params, point);
-    }
-    return vec3(0.0, 0.1, 0.0);
-}
-
 
 float rayMarch(sdfParams params, vec3 ray, int maxIterations, float maxT) {
     float t = 0.0;
@@ -215,7 +199,7 @@ float rayMarch(sdfParams params, vec3 ray, int maxIterations, float maxT) {
         }
 
         //if distance < some epsilon we are done
-        if(distance < 0.01) {
+        if(distance < 0.001) {
             return t;
         }
 
@@ -226,7 +210,6 @@ float rayMarch(sdfParams params, vec3 ray, int maxIterations, float maxT) {
 
     return t;
 }
-
 
 vec3 getNormalFromRays(sdfParams params) {
     float aspect = u_Dimensions.x / u_Dimensions.y;
@@ -250,6 +233,38 @@ vec3 getNormalFromRays(sdfParams params) {
 }
 
 
+vec3 sphereSmoothBlendNormal(sdfParams params, vec3 point) {
+    return getNormalFromRays(params);
+}
+
+
+
+
+vec3 getNormal(sdfParams params, vec3 point) {
+    switch(params.sdfType) {
+        case 0: return sphereNormal            (params, point);
+        case 1: return moonNormal              (params, point);
+        case 2: return sphereIntersectNormal   (params, point);
+        case 3: return sphereSmoothBlendNormal (params, point);
+    }
+    return vec3(0.0, 0.1, 0.0);
+}
+
+
+vec4 getTextureColor(sdfParams params, vec3 point) {
+    switch(params.textureType) {
+        ///flat lambert
+        case 0:
+            vec3 normal = getNormal(params, point);
+            float intensity = dot(normal, lightDirection) * 0.9 + 0.1;
+            return vec4(params.color * intensity, 1.0);
+    }
+}
+
+
+
+
+
 void main() {
 
 
@@ -259,69 +274,59 @@ void main() {
     vec3 ray = getRay(u_Up, u_Eye, u_Ref, aspect, fs_Pos);
 
     //set the default background color
-    vec3 color = 0.5 * (ray + vec3(1.0, 1.0, 1.0));
+    vec4 color = vec4(0.5 * (ray + vec3(1.0, 1.0, 1.0)), 1.0);
+
+    //define all of our shapes
+    sdfParams sdfs[4];
+
+    //sphere
+    sdfs[0].center = vec3(0.0, 0.0, 0.0);
+    sdfs[0].radius = 2.0;
+    sdfs[0].sdfType = 0;
+    sdfs[0].textureType = 0;
+    sdfs[0].color = vec3(0.6, 1.0, 0.0);
+
+    //moon
+    sdfs[1].center = vec3(4.5, 0.0, 0.0);
+    sdfs[1].radius = 2.0;
+    sdfs[1].sdfType = 1;
+    sdfs[1].textureType = 0;
+    sdfs[1].color = vec3(1.0, 0.6, 0.0);
+    sdfs[1].numCraters = 1;
+
+
+    //football
+    sdfs[2].center = vec3(-4.5, 0.0, 0.0);
+    sdfs[2].radius = 2.0;
+    sdfs[2].sdfType = 2;
+    sdfs[2].textureType = 0;
+    sdfs[2].color = vec3(1.0, 0.0, 0.0);
+
+    //sphere blend
+    sdfs[3].center = vec3(-8.5, 0.0, 0.0);
+    sdfs[3].radius = 2.0;
+    sdfs[3].sdfType = 3;
+    sdfs[3].textureType = 0;
+    sdfs[3].color = vec3(0.0, 0.0, 1.0);
 
     //set up
     float maxT = 100.0;
     int maxIterations = 100;
     vec3 normal = lightDirection;
+    float t;
 
+    //ray march each sdf to determine the
+    for(int i = 0; i < 4; i++) {
+        t = rayMarch(sdfs[i], ray, maxIterations, maxT);
 
-    sdfParams params;
+        if( t < maxT) {
+            //get the diffuse term
+            color = getTextureColor(sdfs[i], u_Eye + ray*t);
+            maxT = t;
+        }
 
-    //ray march the sphere
-    params.center = vec3(0.0, 0.0, 0.0);
-    params.radius = 2.0;
-    params.sdfType = 0;
-    float t = rayMarch(params, ray, maxIterations, maxT);
-    if( t < maxT) {
-        //get the diffuse term
-        color = vec3(0.6, 1.0, 0.0);
-        normal = getNormal(params, u_Eye + ray*t);
-        maxT = t;
     }
 
 
-
-    //ray march the moon
-    params.center.x = 4.5;
-    params.numCraters = 1;
-    params.sdfType = 1;
-    t = rayMarch(params, ray, maxIterations, maxT);
-    if( t < maxT) {
-        //get the diffuse term
-        color = vec3(1.0, 0.6, 0.0);
-        normal = getNormal(params, u_Eye + ray*t);
-        maxT = t;
-    }
-
-
-    //ray march the sphere intersect
-    params.center = vec3(-4.5, 0.0, 0.0);
-    params.sdfType = 2;
-    t = rayMarch(params, ray, maxIterations, maxT);
-    if( t < maxT) {
-        //get the diffuse term
-        color = vec3(1.0, 0.0, 0.0);
-        normal = getNormal(params, u_Eye + ray*t);
-        maxT = t;
-    }
-
-
-    params.center =  vec3(9.0, 0.0, 0.0);
-    params.radius =  1.5;
-    params.sdfType = 3;
-    t = rayMarch(params, ray, maxIterations, maxT);
-    if( t < maxT) {
-        //get the diffuse term
-        color = vec3(0.0, 0.0, 1.0);
-        normal = getNormalFromRays(params);
-        maxT = t;
-    }
-
-
-    float intensity = dot(normal, lightDirection) * 0.9 + 0.1;
-    out_Col = vec4(color * intensity, 1.0);
-
-
+    out_Col = color;
 }

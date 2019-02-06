@@ -9,7 +9,7 @@ in vec2 fs_Pos;
 out vec4 out_Col;
 
 const vec3 lightDirection = normalize(vec3(1.0,2.0,-1.0));
-const float sceneRadius = 50.0;
+const float sceneRadius = 15.0;
 const int numObjects = 5;
 const float distanceThreshold = 0.001;
 
@@ -116,22 +116,28 @@ boundingCube getBoundingCubeForObject(sdfParams params) {
             bCube.max = params.center + vec3(params.radius);
             break;
         case 4: //sphere smooth blend
-            bCube.min = params.center - params.size * 0.5;
-            bCube.max = params.center + params.size * 0.5;
-    }
+            bCube.min = params.center - params.size/2.0 - 0.1;
+            bCube.max = params.center + params.size/2.0 + 0.1;
+            }
     return bCube;
 }
 
 void addChildToBoundingCube(in boundingCube child, inout boundingCube parent) {
-    parent.min.x = min(parent.min.x, child.min.x);
-    parent.min.y = min(parent.min.y, child.min.y);
-    parent.min.z = min(parent.min.z, child.min.z);
+    parent.numObjects++;
+    if (parent.numObjects == 1) {
+        parent.min = child.min;
+        parent.max = child.max;
+    }
+    else {
+        parent.min.x = min(parent.min.x, child.min.x);
+        parent.min.y = min(parent.min.y, child.min.y);
+        parent.min.z = min(parent.min.z, child.min.z);
 
-    parent.max.x = max(parent.max.x, child.max.x);
-    parent.max.y = max(parent.max.y, child.max.y);
-    parent.max.z = max(parent.max.z, child.max.z);
+        parent.max.x = max(parent.max.x, child.max.x);
+        parent.max.y = max(parent.max.y, child.max.y);
+        parent.max.z = max(parent.max.z, child.max.z);
+    }
 
-   parent.numObjects ++;
 
 }
 
@@ -450,7 +456,7 @@ void initSdfs() {
     sdfs[1].numCraters = 1;
 
     //football
-    sdfs[2].center = vec3(-4.5, 0.0, 0.0);
+    sdfs[2].center = vec3(-4.5, 5.0, 0.0);
     sdfs[2].radius = 2.0;
     sdfs[2].sdfType = 2;
     sdfs[2].textureType = 0;
@@ -464,7 +470,7 @@ void initSdfs() {
     sdfs[3].color = vec3(0.0, 0.0, 1.0);
 
     //square
-    sdfs[4].center = vec3(8.5, 0.0, 0.0);
+    sdfs[4].center = vec3(5, -6.0, 0.0);
     sdfs[4].radius = 2.0;
     sdfs[4].sdfType = 4;
     sdfs[4].textureType = 0;
@@ -501,25 +507,44 @@ void main() {
     vec3 normal = lightDirection;
     float t;
 
-    //ray march each sdf to determine the
+    //get the params to ray march highest bounding box
     sdfParams params = boundingCubeToSdfParams(bCubes1);
     t = rayMarch(params, ray, maxIterations, maxT);
     if(t < maxT) {
-        //get the diffuse term
-        color = getTextureColor(params, u_Eye + ray*t);
-        //maxT = t;
-    }
+        //loop through the next set of bounding boxes
+        for(int i = 0; i < 8; i++) {
+            if(bCubes2[i].numObjects > 0) {
+                params = boundingCubeToSdfParams(bCubes2[i]);
+                t = rayMarch(params, ray, maxIterations, maxT);
+                if(t < maxT) {
 
-    for(int i = 0; i < numObjects; i++) {
-        t = rayMarch(sdfs[i], ray, maxIterations, maxT);
-
-        if( t < maxT) {
-            //get the diffuse term
-            color = getTextureColor(sdfs[i], u_Eye + ray*t);
-            maxT = t;
+                    //loop through next set of bounding boxes
+                    for(int j=0; j < 64; j++) {
+                        if(bCubes3[j].numObjects > 0 && bCubes3[j].parentIndex == i) {
+                            params = boundingCubeToSdfParams(bCubes3[j]);
+                            t = rayMarch(params, ray, maxIterations, maxT);
+                            if(t < maxT) {
+                                color = getTextureColor(params, u_Eye + ray*t);
+                            }
+                        }
+                    }
+                }
+            }
         }
+        //get the diffuse term
+        //maxT = t;
+        for(int i = 0; i < numObjects; i++) {
+            t = rayMarch(sdfs[i], ray, maxIterations, maxT);
 
+            if( t < maxT) {
+                //get the diffuse term
+                color = getTextureColor(sdfs[i], u_Eye + ray*t);
+                maxT = t;
+            }
+
+        }
     }
+
 
 
     out_Col = color;

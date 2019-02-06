@@ -26,7 +26,7 @@ struct sdfParams {
 
 sdfParams sdfs[numObjects];
 
-//
+//********************************************** Bounding Cube  Functions **************//
 struct boundingCube {
    int parentIndex;
    int numObjects;
@@ -108,12 +108,16 @@ int getBoundingCube3Index(vec3 point) {
 boundingCube getBoundingCubeForObject(sdfParams params) {
     boundingCube bCube;
     switch(params.sdfType) {
-        case 1: //sphere
-        case 2: //moon
-        case 3: //shere intersect
-        case 4: //sphere smooth blend
+        case 0: //sphere
+        case 1: //moon
+        case 2: //shere intersect
+        case 3: //sphere smooth blend
             bCube.min = params.center - vec3(params.radius);
             bCube.max = params.center + vec3(params.radius);
+            break;
+        case 4: //sphere smooth blend
+            bCube.min = params.center - params.size * 0.5;
+            bCube.max = params.center + params.size * 0.5;
     }
     return bCube;
 }
@@ -147,8 +151,19 @@ void addObjectToBoundingCubes(int objectIndex) {
 
     //set the b4 cube
     bc.parentIndex = b3Index;
-    bCubes4[objectIndex].parentIndex = b3Index;
+    bCubes4[objectIndex] = bc;
 }
+
+
+sdfParams boundingCubeToSdfParams(boundingCube bc) {
+    sdfParams params;
+    params.sdfType = 4;
+    params.center = mix(bc.min, bc.max, 0.5);
+    params.size = bc.max - bc.min;
+    params.color = vec3(0.9);
+    return params;
+}
+
 
 
 
@@ -176,20 +191,7 @@ void addObjectToBoundingCubes(int objectIndex) {
 //  )) * 85734.3545);
 //}
 
-
-//  Function to calculate the ray based upn the up, eye, ref, aspect ration and screen position
-vec3 getRay(vec3 up, vec3 eye, vec3 ref, float aspect, vec2 screenPos) {
-    vec3 right = normalize(cross( up - eye, up));  //right vector
-    float len = length(ref - eye);   //length
-    vec3 vert = up * len; //normally this would also be based upon FOV tan(FOV) but we are constraing to the box
-    vec3 horiz = right * aspect * len; //normally this would also be based upon FOV tan(FOV) but we are constraining to the box
-    vec3 point = ref + (screenPos.x * horiz) + screenPos.y * vert;
-
-    //calculate the ray
-    return normalize(point - eye);
-
-}
-
+//############################################ SDF Manipulation Functions ################3
 
 //function to subract one sdf defined shape from another
 float sdfSubtract(float distance1, float distance2) {
@@ -213,6 +215,19 @@ float sdfSmoothBlend(float a, float b) {
     return mix( b, a, h ) - k*h*(1.0-h);
 }
 
+//  Function to calculate the ray based upn the up, eye, ref, aspect ration and screen position
+vec3 getRay(vec3 up, vec3 eye, vec3 ref, float aspect, vec2 screenPos) {
+    vec3 right = normalize(cross( up - eye, up));  //right vector
+    float len = length(ref - eye);   //length
+    vec3 vert = up * len; //normally this would also be based upon FOV tan(FOV) but we are constraing to the box
+    vec3 horiz = right * aspect * len; //normally this would also be based upon FOV tan(FOV) but we are constraining to the box
+    vec3 point = ref + (screenPos.x * horiz) + screenPos.y * vert;
+
+    //calculate the ray
+    return normalize(point - eye);
+
+}
+
 float sphereSDF(sdfParams params, vec3 point) {
     return length(point - params.center) - params.radius;
 }
@@ -220,13 +235,6 @@ float sphereSDF(sdfParams params, vec3 point) {
 
 vec3 sphereNormal(sdfParams params, vec3 point) {
     return normalize(point - params.center);
-}
-
-sdfParams boundingCubeToSdfParams(boundingCube bc) {
-    sdfParams params;
-    params.center = mix(bc.min, bc.max, 0.5);
-    params.size = bc.max - bc.min;
-    return params;
 }
 
 
@@ -323,7 +331,7 @@ float sphereSmoothBlendSDF(sdfParams params, vec3 point) {
 float cubeSDF(sdfParams params, vec3 point) {
      //translate points so that cube is at origin
      point -= params.center;
-     vec3 d = abs(point) - params.size;
+     vec3 d = abs(point) - params.size/2.0;
      return length(max(d, 0.0))
         + min(max(d.x,max(d.y,d.z)),0.0);
 }
@@ -384,14 +392,14 @@ vec3 getNormalFromRays(sdfParams params) {
 
 vec3 cubeNormal(sdfParams params, vec3 point) {
     //return getNormalFromRays(params);
-    if(abs(params.center.x + params.size.x - point.x) <= distanceThreshold*10.0) return vec3(1.0, 0.0, 0.0);
-    if(abs(params.center.x - params.size.x - point.x) <= distanceThreshold*10.0) return vec3(-1.0, 0.0, 0.0);
+    if(abs(params.center.x + params.size.x/2.0 - point.x) <= distanceThreshold*10.0) return vec3(1.0, 0.0, 0.0);
+    if(abs(params.center.x - params.size.x/2.0 - point.x) <= distanceThreshold*10.0) return vec3(-1.0, 0.0, 0.0);
 
-    if(abs(params.center.y + params.size.y - point.y) <= distanceThreshold) return vec3(0.0, 1.0, 0.0);
-    if(abs(params.center.y - params.size.y - point.y) <= distanceThreshold) return vec3(0.0, -1.0, 0.0);
+    if(abs(params.center.y + params.size.y/2.0 - point.y) <= distanceThreshold) return vec3(0.0, 1.0, 0.0);
+    if(abs(params.center.y - params.size.y/2.0 - point.y) <= distanceThreshold) return vec3(0.0, -1.0, 0.0);
 
-    if(abs(params.center.z + params.size.z - point.z) <= distanceThreshold) return vec3(0.0, 0.0, 1.0);
-    if(abs(params.center.z - params.size.z - point.z) <= distanceThreshold) return vec3(0.0, 0.0, -1.0);
+    if(abs(params.center.z + params.size.z/2.0 - point.z) <= distanceThreshold) return vec3(0.0, 0.0, 1.0);
+    if(abs(params.center.z - params.size.z/2.0 - point.z) <= distanceThreshold) return vec3(0.0, 0.0, -1.0);
 
     return vec3(1.0);
 }
@@ -441,7 +449,6 @@ void initSdfs() {
     sdfs[1].color = vec3(1.0, 0.6, 0.0);
     sdfs[1].numCraters = 1;
 
-
     //football
     sdfs[2].center = vec3(-4.5, 0.0, 0.0);
     sdfs[2].radius = 2.0;
@@ -461,8 +468,9 @@ void initSdfs() {
     sdfs[4].radius = 2.0;
     sdfs[4].sdfType = 4;
     sdfs[4].textureType = 0;
-    sdfs[4].color = vec3(0.3, 0.6, 1.0);
+    sdfs[4].color = vec3(0.3, 1.0, 1.0);
     sdfs[4].size = vec3(2.0);
+
 }
 
 
@@ -484,6 +492,9 @@ void main() {
     //set up
     initSdfs();
     initializeBoundingCubes();
+    for(int i=0; i<numObjects; i++) {
+       addObjectToBoundingCubes(i);
+    }
 
     float maxT = 100.0;
     int maxIterations = 100;
@@ -493,10 +504,10 @@ void main() {
     //ray march each sdf to determine the
     sdfParams params = boundingCubeToSdfParams(bCubes1);
     t = rayMarch(params, ray, maxIterations, maxT);
-    if(ray.x < bCubes1.max.z) {
+    if(t < maxT) {
         //get the diffuse term
         color = getTextureColor(params, u_Eye + ray*t);
-        maxT = t;
+        //maxT = t;
     }
 
     for(int i = 0; i < numObjects; i++) {

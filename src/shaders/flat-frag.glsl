@@ -589,7 +589,18 @@ void initSdfs() {
 
 }
 
+vec3 backgroundColor(vec2 pos, vec3 ray) {
+    vec3 p = floor(ray*100.0)/ 100.0;
+    vec3 seed = vec3( 1.1, 2.0, 9.443);
+    vec3 starProb = random3(p, seed);
 
+    if(starProb.x > 0.97) {
+      return vec3(0.7);
+    }
+
+     return 0.04 * (ray + vec3(1.0, 1.0, 1.0));
+
+}
 
 
 
@@ -603,7 +614,7 @@ void main() {
     vec3 ray = getRay(u_Up, u_Eye, u_Ref, aspect, fs_Pos);
 
     //set the default background color
-    vec4 color = vec4(0.1 * (ray + vec3(1.0, 1.0, 1.0)), 1.0);
+    vec4 color = vec4(backgroundColor(fs_Pos, ray), 1.0);
 
 
     //set up

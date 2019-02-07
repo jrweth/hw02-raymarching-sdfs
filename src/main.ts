@@ -11,7 +11,9 @@ import ShaderProgram, {Shader} from './rendering/gl/ShaderProgram';
 // This will be referred to by dat.GUI's functions that add GUI elements.
 const controls = {
   tesselations: 5,
-  'Load Scene': loadScene, // A function pointer, essentially
+  'Load Scene': loadScene, // A function pointer, essentiallyo
+  'Moon Craters': 20,
+  'Speed': 1.0
 };
 
 let square: Square;
@@ -47,6 +49,8 @@ function main() {
 
   // Add controls to the gui
   const gui = new DAT.GUI();
+  gui.add(controls, 'Moon Craters', 0, 120);
+  gui.add(controls, 'Speed', {'0': 0.0, '1/10': 0.1, '1/4': 0.25, '1/2': 0.5, 'normal': 1, 'x2': 2, 'x4': 4, 'x10': 10});
 
   // get canvas and webgl context
   const canvas = <HTMLCanvasElement> document.getElementById('canvas');
@@ -83,6 +87,8 @@ function main() {
     gl.viewport(0, 0, window.innerWidth, window.innerHeight);
     renderer.clear();
     processKeyPresses();
+    flat.setCraters(controls['Moon Craters']);
+    flat.setSpeed(controls.Speed);
     renderer.render(camera, flat, [
       square,
     ], time);

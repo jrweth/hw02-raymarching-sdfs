@@ -29,6 +29,8 @@ class ShaderProgram {
   unifUp: WebGLUniformLocation;
   unifDimensions: WebGLUniformLocation;
   unifTime: WebGLUniformLocation;
+  unifCraters: WebGLUniformLocation;
+  unifSpeed: WebGLUniformLocation;
 
   constructor(shaders: Array<Shader>) {
     this.prog = gl.createProgram();
@@ -47,6 +49,8 @@ class ShaderProgram {
     this.unifUp   = gl.getUniformLocation(this.prog, "u_Up");
     this.unifDimensions   = gl.getUniformLocation(this.prog, "u_Dimensions");
     this.unifTime   = gl.getUniformLocation(this.prog, "u_Time");
+    this.unifCraters   = gl.getUniformLocation(this.prog, "u_Craters");
+    this.unifSpeed   = gl.getUniformLocation(this.prog, "u_Speed");
   }
 
   use() {
@@ -80,6 +84,20 @@ class ShaderProgram {
     this.use();
     if(this.unifTime !== -1) {
       gl.uniform1f(this.unifTime, t);
+    }
+  }
+
+  setCraters(n: number) {
+    this.use();
+    if(this.unifCraters !== -1) {
+      gl.uniform1i(this.unifCraters, n);
+    }
+  }
+
+  setSpeed(speed: number) {
+    this.use();
+    if(this.unifSpeed !== -1) {
+      gl.uniform1f(this.unifSpeed, speed);
     }
   }
 

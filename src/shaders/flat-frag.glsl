@@ -4,6 +4,8 @@ precision highp float;
 uniform vec3 u_Eye, u_Ref, u_Up;
 uniform vec2 u_Dimensions;
 uniform float u_Time;
+uniform int u_Craters;
+uniform float u_Speed;
 
 in vec2 fs_Pos;
 out vec4 out_Col;
@@ -12,9 +14,9 @@ const vec3 lightDirection = normalize(vec3(1.0,2.0,-1.0));
 const float sceneRadius = 15.0;
 const int numObjects = 10;
 const float distanceThreshold = 0.001;
-const float speed = 0.5;
 const float roationSpeed = 1.0;
 
+float sunCycle;
 // Params definining an sdf in our scene
 struct sdfParams {
     int sdfType;
@@ -369,7 +371,7 @@ float spikeSDF(vec3 center, float width, float height, vec3 direction, vec3 poin
 
 float sphereSmoothBlendSDF(sdfParams params, vec3 point) {
     //create sphere above the given center
-    float separation = sin(speed * u_Time/20.0) * params.radius *  1.5;
+    float separation = sunCycle * params.radius *  1.5;
     float radius = params.radius;
 
     sdfParams params1 = params;
@@ -500,13 +502,15 @@ vec4 getTextureColor(sdfParams params, vec3 point) {
         case 0:
             normal = getNormal(params, point);
             lightDirection = normalize(-1.0 * params.center);
-            float intensity = dot(normal, lightDirection) * 0.9 + 0.1;
+            intensity = dot(normal, lightDirection) * 0.9 + 0.3;
+            intensity = intensity - sunCycle * 0.5;
             return vec4(params.color * intensity, 1.0);
         //light from camera
         case 1:
             normal = getNormal(params, point);
             lightDirection = normalize(u_Eye - params.center);
-            intensity = dot(normal, lightDirection) * 0.9 + 0.5;
+            intensity = dot(normal, lightDirection) * 0.9 + 0.7;
+            intensity = intensity - sunCycle;
             return vec4(params.color * intensity, 1.0);
              return vec4(params.color, 1.0);
              //disc
@@ -516,11 +520,12 @@ vec4 getTextureColor(sdfParams params, vec3 point) {
 
 void initSdfs() {
     //earth
+    float pi = 3.14159;
 
     vec3 earthCenter = vec3(
-        sin((u_Time+100.0)/80.0 * speed)* 18.0,
+        sin(pi/2.0 + u_Time/180.0 * u_Speed)* 18.0,
         0,
-        cos((u_Time+100.0)/80.0 * speed) * 18.0
+        cos(pi/2.0 + u_Time/180.0 * u_Speed) * 18.0
     );
     sdfs[0].center = earthCenter;
     sdfs[0].radius = 2.0;
@@ -531,22 +536,22 @@ void initSdfs() {
     //moon
     vec3 moonCenter = earthCenter +
     vec3(
-        sin((u_Time+100.0)/10.0 * speed)* 5.0,
-        sin((u_Time+100.0)/10.0 * speed)* 2.0,
-        cos((u_Time+100.0)/10.0 * speed) * 5.0
+        sin((u_Time+100.0)/20.0 * u_Speed)* 5.0,
+        sin((u_Time+100.0)/20.0 * u_Speed)* 2.0,
+        cos((u_Time+100.0)/20.0 * u_Speed) * 5.0
     );
     sdfs[1].center = moonCenter;
     sdfs[1].radius = 1.0;
     sdfs[1].sdfType = 1;
     sdfs[1].textureType = 0;
     sdfs[1].color = vec3(0.776, 0.858, 0.862);
-    sdfs[1].numCraters = 20;
+    sdfs[1].numCraters = u_Craters;
 
     //football saturn
     vec3 footbalCenter = vec3(
-         sin(u_Time/120.0 * speed)* 25.0,
+         sin(-pi/2.0 + u_Time/220.0 * u_Speed)* 25.0,
          0,
-         cos(u_Time/120.0 * speed) * 25.0
+         cos(-pi/2.0 + u_Time/220.0 * u_Speed) * 25.0
      );
     sdfs[2].center = footbalCenter;
     sdfs[2].radius = 2.0;
@@ -571,9 +576,9 @@ void initSdfs() {
 
 
     vec3 venusCenter = vec3(
-        sin((u_Time+10.0)/10.0 * speed)* 8.0,
+        sin((u_Time+10.0)/50.0 * u_Speed)* 8.0,
         0,
-        cos((u_Time+10.0)/10.0 * speed) * 8.0
+        cos((u_Time+10.0)/50.0 * u_Speed) * 8.0
     );
     sdfs[5].center = venusCenter;
     sdfs[5].radius = 0.7;
@@ -590,6 +595,7 @@ void initSdfs() {
 
 void main() {
 
+    sunCycle = pow(abs(sin(u_Speed * u_Time/100.0)), 1.0);
 
     float aspect = u_Dimensions.x / u_Dimensions.y;
 

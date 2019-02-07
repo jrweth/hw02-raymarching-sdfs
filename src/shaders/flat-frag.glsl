@@ -263,7 +263,7 @@ void getMoonCrater(sdfParams params, int craterIndex, out sdfParams craterParams
 
     vec3 craterPlacement = normalize(random3(vec3(craterIndex,2,3), vec3(1,2,3)) * 2.0 - 1.0);
     //rotate around
-    craterPlacement = rotateY(craterPlacement, roationSpeed * u_Time / 20.0);
+    craterPlacement = rotateY(craterPlacement, roationSpeed * u_Time / 9.0);
     float craterOffset = params.radius * (1.0 + random1(vec2(craterIndex, 2.0), vec2(2,3)) * 0.3);
     craterParams.center = params.center + (craterPlacement * craterOffset);
     craterParams.radius = params.radius * random1(vec2(craterIndex, 2.0), vec2(2,3)) * 0.4;
@@ -494,6 +494,7 @@ vec3 getNormal(sdfParams params, vec3 point) {
 vec4 getTextureColor(sdfParams params, vec3 point) {
     vec3 normal;
     vec3 lightDirection;
+    float intensity;
     switch(params.textureType) {
         ///flat lambert
         case 0:
@@ -501,8 +502,12 @@ vec4 getTextureColor(sdfParams params, vec3 point) {
             lightDirection = normalize(-1.0 * params.center);
             float intensity = dot(normal, lightDirection) * 0.9 + 0.1;
             return vec4(params.color * intensity, 1.0);
-        //straight color
+        //light from camera
         case 1:
+            normal = getNormal(params, point);
+            lightDirection = normalize(u_Eye - params.center);
+            intensity = dot(normal, lightDirection) * 0.9 + 0.5;
+            return vec4(params.color * intensity, 1.0);
              return vec4(params.color, 1.0);
              //disc
     }
@@ -510,30 +515,38 @@ vec4 getTextureColor(sdfParams params, vec3 point) {
 }
 
 void initSdfs() {
-    //sun
-    sdfs[0].center = vec3(0.0, 0.0, 0.0);
-    sdfs[0].radius = 1.0;
+    //earth
+
+    vec3 earthCenter = vec3(
+        sin((u_Time+100.0)/80.0 * speed)* 18.0,
+        0,
+        cos((u_Time+100.0)/80.0 * speed) * 18.0
+    );
+    sdfs[0].center = earthCenter;
+    sdfs[0].radius = 2.0;
     sdfs[0].sdfType = 0;
-    sdfs[0].textureType = 1;
-    sdfs[0].color = vec3(0.988, 0.992, 0.588);
+    sdfs[0].textureType = 0;
+    sdfs[0].color = vec3(0.0, 0.0, 1.0);
 
     //moon
-    sdfs[1].center = vec3(
-        sin((u_Time+100.0)/80.0 * speed)* 8.0,
-        0,
-        cos((u_Time+100.0)/80.0 * speed) * 8.0
+    vec3 moonCenter = earthCenter +
+    vec3(
+        sin((u_Time+100.0)/10.0 * speed)* 5.0,
+        sin((u_Time+100.0)/10.0 * speed)* 2.0,
+        cos((u_Time+100.0)/10.0 * speed) * 5.0
     );
+    sdfs[1].center = moonCenter;
     sdfs[1].radius = 1.0;
     sdfs[1].sdfType = 1;
     sdfs[1].textureType = 0;
-    sdfs[1].color = vec3(1.0, 0.6, 0.0);
+    sdfs[1].color = vec3(0.776, 0.858, 0.862);
     sdfs[1].numCraters = 20;
 
-    //football
+    //football saturn
     vec3 footbalCenter = vec3(
-         sin(u_Time/120.0 * speed)* 20.0,
+         sin(u_Time/120.0 * speed)* 25.0,
          0,
-         cos(u_Time/120.0 * speed) * 20.0
+         cos(u_Time/120.0 * speed) * 25.0
      );
     sdfs[2].center = footbalCenter;
     sdfs[2].radius = 2.0;
@@ -550,11 +563,24 @@ void initSdfs() {
 
 
     //sphere blend
-    sdfs[3].center = vec3(-8.5, 0.0, 0.0);
+    sdfs[3].center = vec3(0.0, 0.0, 0.0);
     sdfs[3].radius = 2.0;
     sdfs[3].sdfType = 3;
-    sdfs[3].textureType = 0;
-    sdfs[3].color = vec3(0.0, 0.0, 1.0);
+    sdfs[3].textureType = 1;
+    sdfs[3].color = vec3(0.988, 0.992, 0.588);
+
+
+    vec3 venusCenter = vec3(
+        sin((u_Time+10.0)/10.0 * speed)* 8.0,
+        0,
+        cos((u_Time+10.0)/10.0 * speed) * 8.0
+    );
+    sdfs[5].center = venusCenter;
+    sdfs[5].radius = 0.7;
+    sdfs[5].sdfType = 0;
+    sdfs[5].textureType = 0;
+    sdfs[5].color = vec3(0.815, 0.670, 0.423);
+
 
 }
 
@@ -571,7 +597,7 @@ void main() {
     vec3 ray = getRay(u_Up, u_Eye, u_Ref, aspect, fs_Pos);
 
     //set the default background color
-    vec4 color = vec4(0.5 * (ray + vec3(1.0, 1.0, 1.0)), 1.0);
+    vec4 color = vec4(0.1 * (ray + vec3(1.0, 1.0, 1.0)), 1.0);
 
 
     //set up

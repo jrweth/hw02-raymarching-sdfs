@@ -265,7 +265,7 @@ void getMoonCrater(sdfParams params, int craterIndex, out sdfParams craterParams
 
     vec3 craterPlacement = normalize(random3(vec3(craterIndex,2,3), vec3(1,2,3)) * 2.0 - 1.0);
     //rotate around
-    craterPlacement = rotateY(craterPlacement, roationSpeed * u_Time / 9.0);
+    craterPlacement = rotateY(craterPlacement, u_Speed * u_Time / 9.0);
     float craterOffset = params.radius * (1.0 + random1(vec2(craterIndex, 2.0), vec2(2,3)) * 0.3);
     craterParams.center = params.center + (craterPlacement * craterOffset);
     craterParams.radius = params.radius * random1(vec2(craterIndex, 2.0), vec2(2,3)) * 0.4;

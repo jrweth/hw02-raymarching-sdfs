@@ -10,8 +10,10 @@ out vec4 out_Col;
 
 const vec3 lightDirection = normalize(vec3(1.0,2.0,-1.0));
 const float sceneRadius = 15.0;
-const int numObjects = 5;
+const int numObjects = 10;
 const float distanceThreshold = 0.001;
+const float speed = 0.5;
+const float roationSpeed = 1.0;
 
 // Params definining an sdf in our scene
 struct sdfParams {
@@ -25,6 +27,18 @@ struct sdfParams {
 };
 
 sdfParams sdfs[numObjects];
+
+vec3 rotateY(vec3 point, float angle) {
+    return mat3(cos(angle), 0.0, sin(angle),
+                0.0,        1.0, 0.0,
+                -sin(angle),0.0, cos(angle)) * point;
+}
+
+vec3 rotateX(vec3 point, float angle) {
+    return mat3(1.0, 0.0,        0.0,
+                0.0, cos(angle), sin(angle),
+                0.0, -sin(angle),cos(angle)) * point;
+}
 
 //********************************************** Bounding Cube  Functions **************//
 struct boundingCube {
@@ -173,29 +187,29 @@ sdfParams boundingCubeToSdfParams(boundingCube bc) {
 
 
 
-//float random1( vec2 p , vec2 seed) {
-//  return fract(sin(dot(p + seed, vec2(127.1, 311.7))) * 43758.5453);
-//}
-//
-//float random1( vec3 p , vec3 seed) {
-//  return fract(sin(dot(p + seed, vec3(987.654, 123.456, 531.975))) * 85734.3545);
-//}
-//
-//vec2 random2( vec2 p , vec2 seed) {
-//  return fract(sin(vec2(dot(p + seed, vec2(311.7, 127.1)), dot(p + seed, vec2(269.5, 183.3)))) * 85734.3545);
-//}
-//
-//vec2 random3( vec2 p , vec2 seed) {
-//  return fract(sin(vec2(dot(p + seed, vec2(311.7, 127.1)), dot(p + seed, vec2(269.5, 183.3)))) * 85734.3545);
-//}
-//
-//vec2 random3( vec3 p, vec3 seed) {
-//  return fract(sin(vec3(
-//      dot(p + seed, vec3(311.7, 127.1, 343.2)),
-//      dot(p + seed, vec3(269.5, 183.3, 32.1)),
-//      dot(p + seed, vec3(269.5, 183.3, 432.2))
-//  )) * 85734.3545);
-//}
+float random1( vec2 p , vec2 seed) {
+  return fract(sin(dot(p + seed, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float random1( vec3 p , vec3 seed) {
+  return fract(sin(dot(p + seed, vec3(987.654, 123.456, 531.975))) * 85734.3545);
+}
+
+vec2 random2( vec2 p , vec2 seed) {
+  return fract(sin(vec2(dot(p + seed, vec2(311.7, 127.1)), dot(p + seed, vec2(269.5, 183.3)))) * 85734.3545);
+}
+
+vec2 random3( vec2 p , vec2 seed) {
+  return fract(sin(vec2(dot(p + seed, vec2(311.7, 127.1)), dot(p + seed, vec2(269.5, 183.3)))) * 85734.3545);
+}
+
+vec3 random3( vec3 p, vec3 seed) {
+  return fract(sin(vec3(
+      dot(p + seed, vec3(311.7, 127.1, 343.2)),
+      dot(p + seed, vec3(269.5, 183.3, 32.1)),
+      dot(p + seed, vec3(269.5, 183.3, 432.2))
+  )) * 85734.3545);
+}
 
 //############################################ SDF Manipulation Functions ################3
 
@@ -246,39 +260,77 @@ vec3 sphereNormal(sdfParams params, vec3 point) {
 
 
 void getMoonCrater(sdfParams params, int craterIndex, out sdfParams craterParams) {
-    vec3 craterPlacement = normalize(vec3(-1.0, 1.0, -2.0));
-    craterParams.center = params.center + (craterPlacement * params.radius);
-    craterParams.radius = params.radius * 0.3;
+
+    vec3 craterPlacement = normalize(random3(vec3(craterIndex,2,3), vec3(1,2,3)) * 2.0 - 1.0);
+    //rotate around
+    craterPlacement = rotateY(craterPlacement, roationSpeed * u_Time / 20.0);
+    float craterOffset = params.radius * (1.0 + random1(vec2(craterIndex, 2.0), vec2(2,3)) * 0.3);
+    craterParams.center = params.center + (craterPlacement * craterOffset);
+    craterParams.radius = params.radius * random1(vec2(craterIndex, 2.0), vec2(2,3)) * 0.4;
 }
 
 
 float moonSDF(sdfParams params, vec3 point) {
-
-    vec3 craterPlacement = normalize(vec3(-1.0, 1.0, -2.0));
     sdfParams craterParams;
-    int craterIndex = 1;
-    getMoonCrater(params, craterIndex, craterParams);
-
-    return sdfSubtract(
-        sphereSDF(craterParams, point),
-        sphereSDF(params, point)
-    );
-}
-
-
-
-vec3 moonNormal(sdfParams params,  vec3 point) {
-
-    sdfParams craterParams;
-    int craterIndex = 1;
-    getMoonCrater(params, craterIndex, craterParams);
-
-    if(sphereSDF(craterParams, point) < 0.0) {
-        return(craterParams.center - point);
+    float distance = sphereSDF(params, point);
+    for(int i = 0; i < params.numCraters; i++) {
+        getMoonCrater(params, i, craterParams);
+        distance = sdfSubtract(
+            sphereSDF(craterParams, point),
+            distance
+        );
     }
+    return distance;
 
-    return normalize(point - params.center);
 }
+
+float cylindarSDF(sdfParams params, vec3 point) {
+    vec3 p = point - params.center;
+    vec2 h = vec2(params.radius, params.size.y);
+
+    vec2 d = abs(vec2(length(p.xz),p.y)) - h;
+    return min(max(d.x,d.y),0.0) + length(max(d,0.0));
+
+}
+
+vec3 cylindarNormal(sdfParams params, vec3 point) {
+     vec3 p = point - params.center;
+     float h = params.size.y;
+     if(point.y >  h *.5)  return vec3(0,1,0);
+     if(point.y <  h *.5)  return vec3(0,-1,0);
+
+     vec2 n1 = normalize(p.xz);
+     return vec3(n1.x, 0, n1.y);
+
+}
+
+
+float discSDF(sdfParams params, vec3 point) {
+     //translate points so that the disc is at origin
+     sdfParams params2 = params;
+     params2.size.y = params2.size.y * 1.5;
+     params2.radius = 4.0;
+     return sdfSubtract(
+         cylindarSDF(params2, point),
+         cylindarSDF(params, point)
+
+     );
+}
+vec3 discNormal(sdfParams params, vec3 point) {
+     vec3 p = point - params.center;
+     float h = params.size.y;
+
+     vec3 normal = cylindarNormal(params, point);
+
+     //flip for the inside of the ring
+     if(abs(p.y) < h * 0.5 && length(p.xy) < params.radius)
+         return normal * -1.0;
+
+     return normal;
+
+
+}
+
 
 
 
@@ -317,15 +369,18 @@ float spikeSDF(vec3 center, float width, float height, vec3 direction, vec3 poin
 
 float sphereSmoothBlendSDF(sdfParams params, vec3 point) {
     //create sphere above the given center
+    float separation = sin(speed * u_Time/20.0) * params.radius *  1.5;
+    float radius = params.radius;
+
     sdfParams params1 = params;
-    params1.center.y = params.center.y + params.radius * 0.4;
-    params1.radius = params.radius * 0.4;
+    params1.center.y += separation;
+    params1.radius = radius;
     float dist1 = sphereSDF(params1, point);
 
     //create second spehere below the current center
     sdfParams params2 = params;
-    params2.center.y = params.center.y - params.radius * 0.4;
-    params2.radius = params.radius * 0.4;
+    params2.center.y -= separation;
+    params2.radius = radius;
     float dist2 = sphereSDF(params2, point);
 
     //return dist1;
@@ -358,6 +413,8 @@ float rayMarch(sdfParams params, vec3 ray, int maxIterations, float maxT) {
             case 2: distance = sphereIntersectSDF  (params, rayPos); break;
             case 3: distance = sphereSmoothBlendSDF(params, rayPos); break;
             case 4: distance = cubeSDF             (params, rayPos); break;
+            case 5: distance = discSDF             (params, rayPos); break;
+            case 6: distance = cylindarSDF         (params, rayPos); break;
         }
 
         //if distance < some epsilon we are done
@@ -394,7 +451,10 @@ vec3 getNormalFromRays(sdfParams params) {
     return normalize(cross(p4-p3, p1-p2));
 }
 
+vec3 moonNormal(sdfParams params,  vec3 point) {
+   return getNormalFromRays(params);
 
+}
 
 vec3 cubeNormal(sdfParams params, vec3 point) {
     //return getNormalFromRays(params);
@@ -423,44 +483,71 @@ vec3 getNormal(sdfParams params, vec3 point) {
         case 2: return sphereIntersectNormal   (params, point);
         case 3: return sphereSmoothBlendNormal (params, point);
         case 4: return cubeNormal              (params, point);
+       // case 5: return discNormal              (params, point);
+       // case 6: return cylindarNormal          (params, point);
+        default: return getNormalFromRays      (params);
     }
     return vec3(0.0, 0.1, 0.0);
 }
 
 
 vec4 getTextureColor(sdfParams params, vec3 point) {
+    vec3 normal;
+    vec3 lightDirection;
     switch(params.textureType) {
         ///flat lambert
         case 0:
-            vec3 normal = getNormal(params, point);
+            normal = getNormal(params, point);
+            lightDirection = normalize(-1.0 * params.center);
             float intensity = dot(normal, lightDirection) * 0.9 + 0.1;
             return vec4(params.color * intensity, 1.0);
+        //straight color
+        case 1:
+             return vec4(params.color, 1.0);
+             //disc
     }
     return vec4(params.color, 1.0);
 }
 
 void initSdfs() {
-    //sphere
+    //sun
     sdfs[0].center = vec3(0.0, 0.0, 0.0);
-    sdfs[0].radius = 2.0;
+    sdfs[0].radius = 1.0;
     sdfs[0].sdfType = 0;
-    sdfs[0].textureType = 0;
-    sdfs[0].color = vec3(0.6, 1.0, 0.0);
+    sdfs[0].textureType = 1;
+    sdfs[0].color = vec3(0.988, 0.992, 0.588);
 
     //moon
-    sdfs[1].center = vec3(4.5, 0.0, 0.0);
-    sdfs[1].radius = 2.0;
+    sdfs[1].center = vec3(
+        sin((u_Time+100.0)/80.0 * speed)* 8.0,
+        0,
+        cos((u_Time+100.0)/80.0 * speed) * 8.0
+    );
+    sdfs[1].radius = 1.0;
     sdfs[1].sdfType = 1;
     sdfs[1].textureType = 0;
     sdfs[1].color = vec3(1.0, 0.6, 0.0);
-    sdfs[1].numCraters = 1;
+    sdfs[1].numCraters = 20;
 
     //football
-    sdfs[2].center = vec3(-4.5, 5.0, 0.0);
+    vec3 footbalCenter = vec3(
+         sin(u_Time/120.0 * speed)* 20.0,
+         0,
+         cos(u_Time/120.0 * speed) * 20.0
+     );
+    sdfs[2].center = footbalCenter;
     sdfs[2].radius = 2.0;
     sdfs[2].sdfType = 2;
     sdfs[2].textureType = 0;
     sdfs[2].color = vec3(1.0, 0.0, 0.0);
+    //football disc
+    sdfs[4].center = footbalCenter;
+    sdfs[4].radius = 5.0;
+    sdfs[4].sdfType = 5;
+    sdfs[4].textureType = 0;
+    sdfs[4].color = vec3(0.3, 1.0, 1.0);
+    sdfs[4].size = vec3(2.8,0.1,0.0);
+
 
     //sphere blend
     sdfs[3].center = vec3(-8.5, 0.0, 0.0);
@@ -468,14 +555,6 @@ void initSdfs() {
     sdfs[3].sdfType = 3;
     sdfs[3].textureType = 0;
     sdfs[3].color = vec3(0.0, 0.0, 1.0);
-
-    //square
-    sdfs[4].center = vec3(5, -6.0, 0.0);
-    sdfs[4].radius = 2.0;
-    sdfs[4].sdfType = 4;
-    sdfs[4].textureType = 0;
-    sdfs[4].color = vec3(0.3, 1.0, 1.0);
-    sdfs[4].size = vec3(2.0);
 
 }
 
@@ -497,52 +576,62 @@ void main() {
 
     //set up
     initSdfs();
-    initializeBoundingCubes();
-    for(int i=0; i<numObjects; i++) {
-       addObjectToBoundingCubes(i);
-    }
 
     float maxT = 100.0;
     int maxIterations = 100;
     vec3 normal = lightDirection;
     float t;
+    //get the diffuse term
+    //maxT = t;
 
+    ///here is the bounding box imnplemntation but it is slower
+    //so I didn't useo
+
+    //initializeBoundingCubes();
+    for(int i=0; i<numObjects; i++) {
+    // addObjectToBoundingCubes(i);
+    }
+
+    for(int i = 0; i < numObjects; i++) {
+        t = rayMarch(sdfs[i], ray, maxIterations, maxT);
+        if( t < maxT) {
+            //get the diffuse term
+            color = getTextureColor(sdfs[i], u_Eye + ray*t);
+            maxT = t;
+        }
+    }
     //get the params to ray march highest bounding box
     sdfParams params = boundingCubeToSdfParams(bCubes1);
     t = rayMarch(params, ray, maxIterations, maxT);
     if(t < maxT) {
-        //loop through the next set of bounding boxes
-        for(int i = 0; i < 8; i++) {
-            if(bCubes2[i].numObjects > 0) {
-                params = boundingCubeToSdfParams(bCubes2[i]);
-                t = rayMarch(params, ray, maxIterations, maxT);
-                if(t < maxT) {
-
-                    //loop through next set of bounding boxes
-                    for(int j=0; j < 64; j++) {
-                        if(bCubes3[j].numObjects > 0 && bCubes3[j].parentIndex == i) {
-                            params = boundingCubeToSdfParams(bCubes3[j]);
-                            t = rayMarch(params, ray, maxIterations, maxT);
-                            if(t < maxT) {
-                                color = getTextureColor(params, u_Eye + ray*t);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        //get the diffuse term
-        //maxT = t;
         for(int i = 0; i < numObjects; i++) {
             t = rayMarch(sdfs[i], ray, maxIterations, maxT);
-
             if( t < maxT) {
                 //get the diffuse term
                 color = getTextureColor(sdfs[i], u_Eye + ray*t);
                 maxT = t;
             }
-
         }
+        //loop through the next set of bounding boxes
+//        for(int i = 0; i < 8; i++) {
+//            if(bCubes2[i].numObjects > 0) {
+//                params = boundingCubeToSdfParams(bCubes2[i]);
+//                t = rayMarch(params, ray, maxIterations, maxT);
+//                if(t < maxT) {
+//
+//                    //loop through next set of bounding boxes
+//                    for(int j=0; j < 64; j++) {
+//                        if(bCubes3[j].numObjects > 0 && bCubes3[j].parentIndex == i) {
+//                            params = boundingCubeToSdfParams(bCubes3[j]);
+//                            t = rayMarch(params, ray, maxIterations, maxT);
+//                            if(t < maxT) {
+//                                color = getTextureColor(params, u_Eye + ray*t);
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
     }
 
 

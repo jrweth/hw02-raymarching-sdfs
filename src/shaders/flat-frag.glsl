@@ -692,13 +692,7 @@ void main() {
     //get the diffuse term
     //maxT = t;
 
-    ///here is the bounding box imnplemntation but it is slower
-    //so I didn't useo
 
-    //initializeBoundingCubes();
-    for(int i=0; i<numObjects; i++) {
-    // addObjectToBoundingCubes(i);
-    }
 
     for(int i = 0; i < numObjects; i++) {
         t = rayMarch(sdfs[i], ray, maxIterations, maxT);
@@ -708,7 +702,16 @@ void main() {
             maxT = t;
         }
     }
-    //get the params to ray march highest bounding box
+
+   //BVH IMPLEMENTATION ----- NOT USED SINCE IT WAS ACTUALLY SLOWER SINCE OBJECTS MOVing
+//        ///here is the bounding box imnplemntation but it is slower
+//        //so I didn't useo
+//
+//        //initializeBoundingCubes();
+//        for(int i=0; i<numObjects; i++) {
+//        // addObjectToBoundingCubes(i);
+//        }
+//    //get the params to ray march highest bounding box
 //    sdfParams params = boundingCubeToSdfParams(bCubes1);
 //    t = rayMarch(params, ray, maxIterations, maxT);
 //    if(t < maxT) {

@@ -91,7 +91,8 @@ float cubeSDF(sdfParams params, vec3 point) {
 ### Moon
 These basic shapes could then be combined in various ways such
 as in the case of the moon where random spheres were subtracted
-from the main sphere
+from the main sphere.
+
 ![](images/moon.png)
 
 ## Computing Normals

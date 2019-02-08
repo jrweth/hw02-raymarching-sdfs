@@ -709,18 +709,18 @@ void main() {
         }
     }
     //get the params to ray march highest bounding box
-    sdfParams params = boundingCubeToSdfParams(bCubes1);
-    t = rayMarch(params, ray, maxIterations, maxT);
-    if(t < maxT) {
-        for(int i = 0; i < numObjects; i++) {
-            t = rayMarch(sdfs[i], ray, maxIterations, maxT);
-            if( t < maxT) {
-                //get the diffuse term
-                color = getTextureColor(sdfs[i], u_Eye + ray*t);
-                maxT = t;
-            }
-        }
-        //loop through the next set of bounding boxes
+//    sdfParams params = boundingCubeToSdfParams(bCubes1);
+//    t = rayMarch(params, ray, maxIterations, maxT);
+//    if(t < maxT) {
+//        for(int i = 0; i < numObjects; i++) {
+//            t = rayMarch(sdfs[i], ray, maxIterations, maxT);
+//            if( t < maxT) {
+//                //get the diffuse term
+//                color = getTextureColor(sdfs[i], u_Eye + ray*t);
+//                maxT = t;
+//            }
+//        }
+//        //loop through the next set of bounding boxes
 //        for(int i = 0; i < 8; i++) {
 //            if(bCubes2[i].numObjects > 0) {
 //                params = boundingCubeToSdfParams(bCubes2[i]);
@@ -732,15 +732,16 @@ void main() {
 //                        if(bCubes3[j].numObjects > 0 && bCubes3[j].parentIndex == i) {
 //                            params = boundingCubeToSdfParams(bCubes3[j]);
 //                            t = rayMarch(params, ray, maxIterations, maxT);
-//                            if(t < maxT) {
-//                                color = getTextureColor(params, u_Eye + ray*t);
-//                            }
+//
+
+//HERE IS WHERE THE LOOP FOR EACH OBJECT OR LEVEL 4 Goes - removed since it was slowing everything down
+
 //                        }
 //                    }
 //                }
 //            }
 //        }
-    }
+ //}
 
 
 

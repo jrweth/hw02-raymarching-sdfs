@@ -111,12 +111,15 @@ This was accomplished by using 4 levels of heirarchy.
 the scene. It is calculated by finding or approximating the min 
 and max for each object on the x,y and z axis  and taking the min of the mins 
 and the max of the maxes for the overall bounding volume.
+
 ![](images/bvh1.png)
 - Second level divided the scene space into 8 sections corresponding to
-the 8 octaves divided by the x, y and z planes and the outer limits of the scene
+the 8 octaves divided by the x, y and z planes and the outer limits of the scene.
+
 ![](images/bvh2.png)
 - The third level divided these 8 octaves in half along the x,z and z planes 
-to get up to 64 new volumes
+to get up to 64 new volumes.
+
 ![](images/bvh3.png)
 - The fourth level contained the bounding volumes for each individual element
 

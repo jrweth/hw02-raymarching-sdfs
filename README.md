@@ -88,20 +88,20 @@ float cubeSDF(sdfParams params, vec3 point) {
 ```
 ![](images/cube.png)
 
-###Moon
+### Moon
 These basic shapes could then be combined in various ways such
 as in the case of the moon where random spheres were subtracted
 from the main sphere
 ![](images/moon.png)
 
-##Computing Normals
+## Computing Normals
 
 For some of the shapes (such as the sphere) computing the surface normal was trivial.
 In other cases the normal was computed by sampling using 4 rays surrounding
 the current ray (two on horizontal axis, two on the vertical) to
 calculate the normal at the point.
 
-##Bounding Value Hierarchy
+## Bounding Value Hierarchy
 To improve efficiency, a bounding volume heirarchy was developed so that
 each ray does not need to be tested against each object if the bounding
 volume in which it resides was not intersected by the ray.  
@@ -124,7 +124,7 @@ Althougth the BVH heirarchy was implemented, because the number of objects
 was low enough the overhead of creating the BVH outweighed the 
 efficiencies it created, so in the final implementation the BVH was removed.
 
-### Final Scene
+## Final Scene
 The final scene was created by using the various SDFs and composition functions
 to create planetary scene.  
 - The planets were rotated using sine/cosine functions.
